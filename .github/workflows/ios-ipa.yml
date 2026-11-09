@@ -131,7 +131,7 @@ jobs:
       - name: Generate Android project
         run: npx expo prebuild --platform android --clean --no-install
 
-      - name: Build debug APK
+      - name: Build release APK
         run: |
           cd android
           chmod +x gradlew
@@ -151,15 +151,15 @@ jobs:
           fi
           grep -E 'distributionUrl|distributionSha256Sum|networkTimeout' "$WRAPPER"
           for attempt in 1 2 3; do
-            echo "Gradle build attempt $attempt"
-            if ./gradlew assembleDebug --no-daemon --stacktrace; then
+            echo "Gradle release build attempt $attempt"
+            if ./gradlew assembleRelease --no-daemon --stacktrace; then
               exit 0
             fi
             if [ "$attempt" -eq 1 ]; then
               echo "Switching Gradle distribution mirror to Tencent."
               sed -i 's|repo.huaweicloud.com|mirrors.cloud.tencent.com|' "$WRAPPER"
             fi
-            echo "Gradle build attempt $attempt failed; retrying in 15 seconds."
+            echo "Gradle release build attempt $attempt failed; retrying in 15 seconds."
             sleep 15
           done
           exit 1
@@ -167,13 +167,14 @@ jobs:
       - name: Prepare APK
         run: |
           mkdir -p dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist/StudentLookup-debug.apk
-          ls -lh dist/StudentLookup-debug.apk
+          cp android/app/build/outputs/apk/release/app-release.apk dist/StudentLookup.apk
+          unzip -l dist/StudentLookup.apk | grep -q 'assets/index.android.bundle'
+          ls -lh dist/StudentLookup.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: student-lookup-android-apk
-          path: dist/StudentLookup-debug.apk
+          name: student-lookup-android-release-apk
+          path: dist/StudentLookup.apk
           if-no-files-found: error
           retention-days: 30
