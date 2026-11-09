@@ -1,4 +1,4 @@
-name: Build unsigned iOS IPA
+name: Build iOS IPA and Android APK
 
 on:
   workflow_dispatch:
@@ -11,12 +11,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-ipa-${{ github.ref }}
+  group: mobile-builds-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build unsigned IPA
+  ios:
+    name: Build unsigned iOS IPA
     runs-on: macos-latest
     timeout-minutes: 60
     env:
@@ -91,5 +91,56 @@ jobs:
         with:
           name: student-lookup-unsigned-ipa
           path: "*-unsigned.ipa"
+          if-no-files-found: error
+          retention-days: 30
+
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EXPO_PUBLIC_API_BASE_URL: https://erp.iiui.edu.pk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Prepare APK
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/StudentLookup-debug.apk
+          ls -lh dist/StudentLookup-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: student-lookup-android-apk
+          path: dist/StudentLookup-debug.apk
           if-no-files-found: error
           retention-days: 30
