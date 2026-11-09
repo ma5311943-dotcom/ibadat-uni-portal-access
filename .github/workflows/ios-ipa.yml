@@ -52,7 +52,9 @@ jobs:
             echo "No Xcode workspace found" >&2
             exit 1
           fi
-          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list -json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);const schemes=j.workspace?.schemes||[];if(!schemes.length)process.exit(1);process.stdout.write(schemes[0]);});")
+          WORKSPACE_BASENAME=$(basename "$WORKSPACE" .xcworkspace)
+          export WORKSPACE_BASENAME
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list -json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);const schemes=j.workspace?.schemes||[];const match=schemes.find(x=>x===process.env.WORKSPACE_BASENAME)||schemes.find(x=>!x.startsWith('Pods-')&&x!=='boost')||schemes[0];if(!match)process.exit(1);process.stdout.write(match);});")
           echo "Workspace: $WORKSPACE"
           echo "Scheme: $SCHEME"
           xcodebuild \
