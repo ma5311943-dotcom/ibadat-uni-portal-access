@@ -131,6 +131,28 @@ jobs:
       - name: Generate Android project
         run: npx expo prebuild --platform android --clean --no-install
 
+      - name: Configure Maven mirrors
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("android/build.gradle")
+          text = path.read_text()
+          mirrors = "\n".join(
+              [
+                  "    maven { url 'https://maven.aliyun.com/repository/google' }",
+                  "    maven { url 'https://maven.aliyun.com/repository/public' }",
+                  "    maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }",
+              ]
+          ) + "\n"
+          text = text.replace(
+              "    google()\n    mavenCentral()\n",
+              mirrors + "    google()\n    mavenCentral()\n",
+          )
+          path.write_text(text)
+          PY
+          grep -A9 'repositories' android/build.gradle
+
       - name: Build release APK
         run: |
           cd android
