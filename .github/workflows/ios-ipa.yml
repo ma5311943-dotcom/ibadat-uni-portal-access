@@ -136,16 +136,28 @@ jobs:
           cd android
           chmod +x gradlew
           WRAPPER=gradle/wrapper/gradle-wrapper.properties
+          GRADLE_VERSION=9.4.1
+          GRADLE_SHA256=2ab2958f2a1e51120c326cad6f385153bb11ee93b3c216c5fccebfdfbb7ec6cb
+          sed -i "s|^distributionUrl=.*|distributionUrl=https\\\\://repo.huaweicloud.com/gradle/gradle-${GRADLE_VERSION}-bin.zip|" "$WRAPPER"
+          if grep -q '^distributionSha256Sum=' "$WRAPPER"; then
+            sed -i "s|^distributionSha256Sum=.*|distributionSha256Sum=${GRADLE_SHA256}|" "$WRAPPER"
+          else
+            echo "distributionSha256Sum=${GRADLE_SHA256}" >> "$WRAPPER"
+          fi
           if grep -q '^networkTimeout=' "$WRAPPER"; then
             sed -i 's/^networkTimeout=.*/networkTimeout=60000/' "$WRAPPER"
           else
             echo 'networkTimeout=60000' >> "$WRAPPER"
           fi
-          grep -E 'distributionUrl|networkTimeout' "$WRAPPER"
+          grep -E 'distributionUrl|distributionSha256Sum|networkTimeout' "$WRAPPER"
           for attempt in 1 2 3; do
             echo "Gradle build attempt $attempt"
             if ./gradlew assembleDebug --no-daemon --stacktrace; then
               exit 0
+            fi
+            if [ "$attempt" -eq 1 ]; then
+              echo "Switching Gradle distribution mirror to Tencent."
+              sed -i 's|repo.huaweicloud.com|mirrors.cloud.tencent.com|' "$WRAPPER"
             fi
             echo "Gradle build attempt $attempt failed; retrying in 15 seconds."
             sleep 15
