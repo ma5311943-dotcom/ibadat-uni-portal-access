@@ -97,7 +97,7 @@ jobs:
   android:
     name: Build Android APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       EXPO_PUBLIC_API_BASE_URL: https://erp.iiui.edu.pk
       ANDROID_HOME: /usr/local/lib/android/sdk
@@ -134,6 +134,13 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
+          WRAPPER=gradle/wrapper/gradle-wrapper.properties
+          if grep -q '^networkTimeout=' "$WRAPPER"; then
+            sed -i 's/^networkTimeout=.*/networkTimeout=60000/' "$WRAPPER"
+          else
+            echo 'networkTimeout=60000' >> "$WRAPPER"
+          fi
+          grep -E 'distributionUrl|networkTimeout' "$WRAPPER"
           ./gradlew assembleDebug --no-daemon
 
       - name: Prepare APK
