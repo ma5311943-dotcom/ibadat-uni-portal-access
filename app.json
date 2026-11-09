@@ -1,24 +1,52 @@
 {
   "expo": {
-    "name": "file",
-    "slug": "file",
+    "name": "Student Lookup",
+    "slug": "student-lookup",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#000000",
     "ios": {
+      "bundleIdentifier": "com.ilyas83548.studentlookup",
       "supportsTablet": true
     },
     "android": {
+      "package": "com.studentlookup.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#000000",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#000000",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain"
+        }
+      ],
+      "expo-font",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to save student photos to your library.",
+          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save student photos to your library.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e7020fc7-e822-43a9-863d-07ae4b93beca"
+      }
+    },
+    "owner": "ilyas83548"
   }
 }

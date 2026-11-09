@@ -1,0 +1,129 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ipa-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: EAS iOS build
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure Apple credentials
+        env:
+          ASC_API_KEY: ${{ secrets.EXPO_ASC_API_KEY }}
+          ASC_KEY_ID: ${{ secrets.EXPO_ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.EXPO_ASC_ISSUER_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_TEAM_TYPE: ${{ secrets.APPLE_TEAM_TYPE }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${ASC_API_KEY}" ] && [ -n "${ASC_KEY_ID}" ] && [ -n "${ASC_ISSUER_ID}" ] && [ -n "${APPLE_TEAM_ID}" ]; then
+            printf '%s' "${ASC_API_KEY}" > "${RUNNER_TEMP}/AuthKey.p8"
+            {
+              echo "EXPO_ASC_API_KEY_PATH=${RUNNER_TEMP}/AuthKey.p8"
+              echo "EXPO_ASC_KEY_ID=${ASC_KEY_ID}"
+              echo "EXPO_ASC_ISSUER_ID=${ASC_ISSUER_ID}"
+              echo "EXPO_APPLE_TEAM_ID=${APPLE_TEAM_ID}"
+            } >> "${GITHUB_ENV}"
+            if [ -n "${APPLE_TEAM_TYPE}" ]; then
+              echo "EXPO_APPLE_TEAM_TYPE=${APPLE_TEAM_TYPE}" >> "${GITHUB_ENV}"
+            fi
+            echo "Using App Store Connect API key credentials."
+          elif [ -n "${APPLE_ID}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD}" ] && [ -n "${APPLE_TEAM_ID}" ]; then
+            {
+              echo "EXPO_APPLE_ID=${APPLE_ID}"
+              echo "EXPO_APPLE_APP_SPECIFIC_PASSWORD=${APPLE_APP_SPECIFIC_PASSWORD}"
+              echo "EXPO_APPLE_TEAM_ID=${APPLE_TEAM_ID}"
+            } >> "${GITHUB_ENV}"
+            if [ -n "${APPLE_TEAM_TYPE}" ]; then
+              echo "EXPO_APPLE_TEAM_TYPE=${APPLE_TEAM_TYPE}" >> "${GITHUB_ENV}"
+            fi
+            echo "Using Apple ID credentials."
+          else
+            echo "::error::Missing Apple signing credentials. Add EXPO_ASC_API_KEY, EXPO_ASC_KEY_ID, EXPO_ASC_ISSUER_ID, and EXPO_APPLE_TEAM_ID as repository secrets, or add APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID."
+            exit 1
+          fi
+
+      - name: Build iOS IPA with EAS
+        run: eas build --platform ios --profile production --non-interactive --wait --json > eas-build.json
+
+      - name: Resolve IPA artifact URL
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const raw = fs.readFileSync('eas-build.json', 'utf8');
+          const parsed = JSON.parse(raw);
+          const builds = Array.isArray(parsed) ? parsed : [parsed];
+          const build = builds.find((item) => item.platform === 'IOS') || builds[0];
+          if (!build) throw new Error('EAS did not return a build.');
+          if (build.status && build.status !== 'FINISHED') {
+            throw new Error(`EAS build finished with status ${build.status}.`);
+          }
+          const url = build.artifacts?.buildUrl || build.artifacts?.applicationArchiveUrl;
+          if (!url) throw new Error('EAS build has no downloadable IPA artifact URL.');
+          fs.writeFileSync('artifact-url.txt', url);
+          fs.writeFileSync('build-id.txt', build.id);
+          console.log(`Build ${build.id} is ${build.status || 'FINISHED'}.`);
+          console.log(`Artifact URL: ${url}`);
+          NODE
+
+      - name: Download IPA
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-delay 5 --output student-lookup.ipa "$(cat artifact-url.txt)"
+          test -s student-lookup.ipa
+          unzip -l student-lookup.ipa | grep -q 'Payload/.*\.app/'
+          ls -lh student-lookup.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: student-lookup-ios-ipa
+          path: student-lookup.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload EAS build metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eas-build-metadata
+          path: |
+            eas-build.json
+            artifact-url.txt
+            build-id.txt
+          if-no-files-found: ignore
+          retention-days: 7
