@@ -102,6 +102,7 @@ jobs:
       EXPO_PUBLIC_API_BASE_URL: https://erp.iiui.edu.pk
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      GRADLE_OPTS: -Dorg.gradle.internal.http.connectionTimeout=60000 -Dorg.gradle.internal.http.socketTimeout=60000
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -141,7 +142,15 @@ jobs:
             echo 'networkTimeout=60000' >> "$WRAPPER"
           fi
           grep -E 'distributionUrl|networkTimeout' "$WRAPPER"
-          ./gradlew assembleDebug --no-daemon
+          for attempt in 1 2 3; do
+            echo "Gradle build attempt $attempt"
+            if ./gradlew assembleDebug --no-daemon --stacktrace; then
+              exit 0
+            fi
+            echo "Gradle build attempt $attempt failed; retrying in 15 seconds."
+            sleep 15
+          done
+          exit 1
 
       - name: Prepare APK
         run: |
